@@ -536,7 +536,7 @@ def render_card(row):
 
 # ====================== SIDEBAR ======================
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["View All Firearms", "Add New Firearm", "Search"])
+page = st.sidebar.radio("Go to", ["View All Firearms", "Add New Firearm", "Search", "Reports"])
 
 
 # ====================== VIEW ALL ======================
@@ -728,5 +728,104 @@ elif page == "Search":
                 render_card(row)
     else:
         st.info("Enter a search term above.")
+
+# ====================== REPORTS ======================
+elif page == "Reports":
+    import csv, io as _io
+
+    st.subheader("📊 Reports")
+    st.write("Download your collection as a CSV file.")
+
+    def rows_to_csv(rows, fieldnames):
+        """Convert a list of Row objects to a UTF-8 CSV string."""
+        buf = _io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore",
+                                lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: row[k] for k in fieldnames})
+        return buf.getvalue().encode("utf-8")
+
+    today = date.today().isoformat()
+
+    st.markdown("---")
+
+    # ── Report 1: Full Export ────────────────────────────────
+    st.markdown("### 📋 Full Export")
+    st.write("Every column in the database for all firearms.")
+
+    full_rows = conn.execute("SELECT * FROM firearms ORDER BY make, model").fetchall()
+
+    if not full_rows:
+        st.info("No firearms in the database yet.")
+    else:
+        all_fields = list(full_rows[0].keys())
+        full_csv   = rows_to_csv(full_rows, all_fields)
+        st.download_button(
+            label=f"⬇️ Download Full Export ({len(full_rows)} records)",
+            data=full_csv,
+            file_name=f"firearms_full_{today}.csv",
+            mime="text/csv",
+        )
+
+    st.markdown("---")
+
+    # ── Report 2: Simplified Export ─────────────────────────
+    st.markdown("### 📄 Simplified Export")
+    st.write("Make, Model, Serial, Caliber, Type, Date Purchased, Finish, Color, "
+             "Produced Year, Status, Status Date, Status Notes, Status Party, Status Case.")
+
+    simplified_fields = [
+        "make", "model", "serial", "caliber", "type", "date_purchased",
+        "metal_finish", "color", "produced_year",
+        "status", "status_date", "status_notes", "status_party", "status_case",
+    ]
+
+    # Friendly header names for the CSV columns
+    friendly_names = {
+        "make":          "Make",
+        "model":         "Model",
+        "serial":        "Serial",
+        "caliber":       "Caliber",
+        "type":          "Type",
+        "date_purchased":"Date Purchased",
+        "metal_finish":  "Finish",
+        "color":         "Color",
+        "produced_year": "Produced Year",
+        "status":        "Status",
+        "status_date":   "Status Date",
+        "status_notes":  "Status Notes",
+        "status_party":  "Status Party",
+        "status_case":   "Status Case",
+    }
+
+    simp_rows = conn.execute("""
+        SELECT make, model, serial, caliber, type, date_purchased,
+               metal_finish, color, produced_year,
+               status, status_date, status_notes, status_party, status_case
+        FROM firearms
+        ORDER BY make, model
+    """).fetchall()
+
+    if not simp_rows:
+        st.info("No firearms in the database yet.")
+    else:
+        # Build CSV with friendly column headers
+        buf = _io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=list(friendly_names.values()),
+                                lineterminator="\n")
+        writer.writeheader()
+        for row in simp_rows:
+            writer.writerow({
+                friendly_names[k]: row[k] for k in simplified_fields
+            })
+        simp_csv = buf.getvalue().encode("utf-8")
+
+        st.download_button(
+            label=f"⬇️ Download Simplified Export ({len(simp_rows)} records)",
+            data=simp_csv,
+            file_name=f"firearms_simplified_{today}.csv",
+            mime="text/csv",
+        )
 
 st.caption("Encrypted Firearms Database • Streamlit + SQLCipher")
