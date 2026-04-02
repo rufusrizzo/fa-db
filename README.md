@@ -60,17 +60,17 @@ It includes a full web interface for adding, editing, searching, and managing yo
 **Ubuntu/Debian:**
 ```
 sudo apt update
-sudo apt install sqlcipher libsqlcipher-dev python3-dev
+sudo apt install sqlcipher libsqlcipher-dev python3-dev tmux
 ```
 
 **Fedora:**
 ```
-sudo dnf install sqlcipher sqlcipher-devel
+sudo dnf install sqlcipher sqlcipher-devel tmux
 ```
 
 **Arch:**
 ```
-sudo pacman -S sqlcipher
+sudo pacman -S sqlcipher tmux
 ```
 
 #### 2. Install Python dependencies
