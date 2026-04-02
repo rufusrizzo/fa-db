@@ -42,6 +42,7 @@ It includes a full web interface for adding, editing, searching, and managing yo
 ## 📦 Requirements
 
 - Python 3.10+
+- tmux
 - SQLCipher (varies by OS)
 - Python packages:
   - `streamlit`
@@ -138,6 +139,10 @@ If `sqlcipher3` fails, the `sqlcipher3-binary` wheel works.
 source venv/bin/activate
 streamlit run firearm-db.py
 ```
+If you want to use tmux.  This activate the virtual env and starts the DB.
+```
+./tmux-run.sh
+```
 
 ### Windows
 ```
@@ -153,13 +158,9 @@ http://localhost:8501
 
 ## 🗄️ Database Password
 
-Inside the script:
+The website will prompt you for the password.
 
-```
-PASSWORD = "ChangeThisToAStrongPassword2025!"
-```
 
-❗ **You MUST change this before storing real data.**
 
 ---
 

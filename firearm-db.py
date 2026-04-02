@@ -13,20 +13,61 @@ st.title("📋 Firearms Database")   # clipboard
 
 # ====================== CONFIG ======================
 DB_FILE = "firearms_encrypted.db"
-PASSWORD = "ChangeThisToAStrongPassword2025!"   # ← CHANGE THIS!
 
+# ── Password gate ────────────────────────────────────────────
+if "db_password" not in st.session_state:
+    st.session_state.db_password = None
+
+if st.session_state.db_password is None:
+    st.markdown("### 🔒 Enter Database Password")
+    import os
+    db_exists = os.path.exists(DB_FILE)
+    if not db_exists:
+        st.info("No database found. Enter a password to create a new encrypted database.")
+    with st.form("password_form"):
+        entered_pw = st.text_input(
+            "Password", type="password",
+            placeholder="Enter your database password"
+        )
+        submitted = st.form_submit_button("Unlock")
+    if submitted:
+        if not entered_pw:
+            st.error("Password cannot be empty.")
+        else:
+            # Validate by attempting to open the DB and read from it
+            try:
+                test_conn = sqlcipher3.connect(DB_FILE)
+                test_conn.execute(f"PRAGMA key='{entered_pw}';")
+                test_conn.execute("PRAGMA cipher_compatibility = 4;")
+                # This will raise an error if the password is wrong
+                test_conn.execute("SELECT count(*) FROM sqlite_master;").fetchone()
+                test_conn.close()
+                st.session_state.db_password = entered_pw
+                st.rerun()
+            except Exception:
+                st.error("Incorrect password or corrupted database. Please try again.")
+    st.stop()
+
+# ── Authenticated — open real connection ─────────────────────
 @st.cache_resource(show_spinner=False)
-def get_db_connection():
+def get_db_connection(password: str):
     conn = sqlcipher3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlcipher3.dbapi2.Row
-    conn.execute(f"PRAGMA key='{PASSWORD}';")
+    conn.execute(f"PRAGMA key='{password}';")
     conn.execute("PRAGMA cipher_compatibility = 4;")
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
     return conn
 
-conn = get_db_connection()
+conn = get_db_connection(st.session_state.db_password)
 cursor = conn.cursor()
+
+# Sidebar lock button
+with st.sidebar:
+    if st.button("🔒 Lock / Change Password"):
+        st.session_state.db_password = None
+        st.cache_resource.clear()
+        st.rerun()
 
 # ====================== CREATE TABLES ======================
 cursor.execute('''
