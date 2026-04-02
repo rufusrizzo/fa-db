@@ -8,7 +8,8 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="streamlit")
 
 st.set_page_config(page_title="Firearms Database", layout="wide")
-st.title("🔫 Firearms Database")
+st.title("📋 Firearms Database")   # clipboard
+
 
 # ====================== CONFIG ======================
 DB_FILE = "firearms_encrypted.db"
