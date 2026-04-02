@@ -1,0 +1,34 @@
+Windows:powershell
+
+python -m venv venv
+
+macOS / Linux:bash
+
+python3 -m venv venv
+
+3. Activate the Virtual EnvironmentWindows (Command Prompt):cmd
+
+venv\Scripts\activate
+
+Windows (PowerShell):powershell
+
+venv\Scripts\Activate.ps1
+
+macOS / Linux:bash
+
+source venv/bin/activate
+
+4. Install the Required Packages
+While the virtual environment is active, run:
+bash
+￼
+pip install streamlit sqlcipher3-binary pillow
+
+
+
+6. Run the App
+With the virtual environment still active, run:
+bash
+￼
+streamlit run firearms_db.py
+
