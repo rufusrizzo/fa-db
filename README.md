@@ -1,213 +1,299 @@
-Firearm Database (Streamlit + SQLCipher)
+# Firearm Database (Streamlit + SQLCipher)
 
 A secure, encrypted, cross-platform firearms inventory application built with Streamlit, SQLCipher, and Python.
 
-This application creates an encrypted database of firearms, maintenance logs, and pictures.
+This application creates an encrypted database of firearms, maintenance logs, and pictures.  
 It includes a full web interface for adding, editing, searching, and managing your collection.
 
-🔒 Features
-Fully encrypted SQLCipher database (firearms_encrypted.db)
-Add, edit, and view full firearm records with 40+ fields
-Upload pictures and maintenance notes
-Automatic created_at timestamps
-Status workflow:
-Active
-Sold
-Deleted / Archived
-Stolen
-Transferred
-Consigned
-Restore deleted/sold items
-View full detail pages with pictures and maintenance
-Runs on Windows, Linux, and macOS
-📦 Requirements
-Python 3.10+
-SQLCipher (varies by OS)
-pip packages:
-streamlit
-sqlcipher3
-pillow
-🛠️ Installation
-Linux Installation
-1. Install SQLCipher
+---
 
-Ubuntu/Debian:
+## 🔒 Features
 
+- Fully encrypted SQLCipher database (`firearms_encrypted.db`)
+- Add, edit, and view full firearm records with **40+ fields**
+- Upload pictures and maintenance notes
+- Automatic `created_at` timestamps
+- Status workflow:
+  - Active
+  - Sold
+  - Deleted / Archived
+  - Stolen
+  - Transferred
+  - Consigned
+- Restore deleted/sold items
+- Full detail pages with photos & maintenance logs
+- Runs on Windows, Linux, and macOS
+
+---
+
+## 📸 Screenshots
+
+### ➕ Add Firearm
+![Add Firearm](preview/firearm-db-add.png)
+
+### 🔍 View Firearm
+![View Firearm](preview/firearm-db-view.png)
+
+### 📊 Reports Page
+![Reports](preview/firearm-db-reports.png)
+
+---
+
+## 📦 Requirements
+
+- Python 3.10+
+- SQLCipher (varies by OS)
+- Python packages:
+  - `streamlit`
+  - `sqlcipher3`
+  - `pillow`
+
+---
+
+## 🛠️ Installation
+
+### Linux Installation
+
+#### 1. Install SQLCipher
+
+**Ubuntu/Debian:**
+```
 sudo apt update
 sudo apt install sqlcipher libsqlcipher-dev python3-dev
+```
 
-Fedora:
-
+**Fedora:**
+```
 sudo dnf install sqlcipher sqlcipher-devel
+```
 
-Arch:
-
+**Arch:**
+```
 sudo pacman -S sqlcipher
-2. Install Python dependencies
+```
+
+#### 2. Install Python dependencies
+```
 python3 -m venv venv
 source venv/bin/activate
 pip install streamlit sqlcipher3 pillow
-3. Place the app
+```
 
-Put firearm-db.py in a project folder.
+#### 3. Place the app
 
-macOS Installation
-1. Install Homebrew (if needed)
+Put `firearm-db.py` in your project folder.
+
+---
+
+### macOS Installation
+
+#### 1. Install Homebrew (if needed)
+```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-2. Install SQLCipher
+```
+
+#### 2. Install SQLCipher
+```
 brew install sqlcipher
-3. Install Python dependencies
+```
+
+#### 3. Install Python dependencies
+```
 python3 -m venv venv
 source venv/bin/activate
 pip install streamlit sqlcipher3 pillow
-Windows Installation
-1. Install SQLCipher
+```
 
-Download the latest Windows binaries:
+---
+
+### Windows Installation
+
+#### 1. Install SQLCipher
+
+Download Windows binaries:
 
 https://github.com/sqlcipher/sqlcipher
 
-Extract them somewhere like:
+Extract to something like:
 
+```
 C:\sqlcipher\
-2. Install Python dependencies
+```
+
+#### 2. Install Python dependencies
+```
 python -m venv venv
 venv\Scripts\activate
 pip install streamlit pillow sqlcipher3-binary
+```
 
-If sqlcipher3 fails, use the sqlcipher3-binary wheel instead.
+If `sqlcipher3` fails, the `sqlcipher3-binary` wheel works.
 
-▶️ Running the Application
-Linux / macOS
+---
+
+## ▶️ Running the Application
+
+### Linux / macOS
+```
 source venv/bin/activate
 streamlit run firearm-db.py
-Windows
+```
+
+### Windows
+```
 venv\Scripts\activate
 streamlit run firearm-db.py
+```
 
-Streamlit will open your default browser automatically.
-If not, visit:
+Then open:
 
 http://localhost:8501
-🗄️ Database Password
+
+---
+
+## 🗄️ Database Password
 
 Inside the script:
 
+```
 PASSWORD = "ChangeThisToAStrongPassword2025!"
+```
 
-You MUST change this before storing real data.
+❗ **You MUST change this before storing real data.**
 
-🌐 Using the Web Application
+---
 
-When the app loads, you will see:
+## 🌐 Using the Web Application
 
-➕ Add New Firearm
+### ➕ Add New Firearm
 
-A form with all input fields:
+A complete form with fields for:
 
-Make, model, serial
-Description
-Type (Handgun/Rifle/etc.)
-Purpose (Range/Home Defense/Carry/etc.)
-Special name
-Caliber (including “Other Caliber” entry box)
-Condition %
-Purchased from, price, date purchased
-Catalog number
-Stock / grip type
-Action, feed system, sights, optics & zoom range
-Dimensions (weight, barrel length, OAL, height)
-Produced year
-Metal finish, color
-Place of origin
-C&R eligible checkbox
-Notes
-Fired round count
-Status (default: Active)
-Status metadata (date / notes / party / case – depends on status)
+- Make, model, serial  
+- Description  
+- Type / Purpose  
+- Special name  
+- Caliber (includes “Other” field)  
+- Condition %  
+- Purchased from / price / date  
+- Catalog number  
+- Grip type  
+- Action / feed / sights / optics / zoom levels  
+- Weight, barrel length, OAL, height  
+- Produced year  
+- Metal finish / color  
+- Place of origin  
+- C&R eligibility checkbox  
+- Notes  
+- Fired round count  
+- Status (Active/Sold/Deleted/Stolen/Transferred/Consigned)  
+- Status metadata depending on selection  
 
 After submitting, the firearm is stored encrypted.
 
-🔍 Viewing Your Firearms
+---
+
+## 🔍 Viewing Your Firearms
 
 The home page lists all firearms.
-Each entry expands to show:
 
-Full details
-All pictures
-All maintenance notes
-🎯 Detail Page
+Selecting a firearm expands to show:
 
-Click a firearm → you get the full detail view, including:
+- Full details  
+- All pictures  
+- All maintenance notes  
 
-Make/model
-Serial
-Caliber
-Condition
-Type & purpose
-Special name
-Storage location
-Fired round count
-Purchase info
-Dimensions
-Optic zoom range
-Action & feed system
-Metal finish & color
-Produced year & origin
-C&R eligible
-Status & status details
-Description and notes
-Maintenance notes
-Photos
-🔧 Status / Actions
+---
 
-Each firearm has buttons:
+## 🎯 Detail Page
 
-✏️ Edit
-💲 Sold
-🔁 Transfer
-🤝 Consign
-🚨 Stolen
-🗑️ Delete
-↩️ Restore
+Full detail view includes:
 
-Selecting an action opens a confirmation form to enter:
+- Make/model  
+- Serial  
+- Caliber  
+- Condition  
+- Type/purpose  
+- Special name  
+- Storage location  
+- Fired round count  
+- Purchase info  
+- Dimensions  
+- Optic zoom range  
+- Action & feed system  
+- Metal finish & color  
+- Produced year & origin  
+- C&R status  
+- Status metadata  
+- Notes  
+- Maintenance notes  
+- Photos  
 
-Status Date
-Notes
-Party Name
-Police Case #
+---
 
-These fields differ based on the action.
+## 🔧 Status / Actions
 
-🛠️ Maintenance Notes
+Each firearm supports:
+
+- ✏️ Edit  
+- 💲 Sold  
+- 🔁 Transfer  
+- 🤝 Consign  
+- 🚨 Stolen  
+- 🗑️ Delete  
+- ↩️ Restore  
+
+Each action may request fields like:
+
+- Status Date  
+- Notes  
+- Party Name  
+- Police Case Number  
+
+---
+
+## 🛠️ Maintenance Notes
 
 You can add:
 
-Note #
-Note text
-Date (defaults to today)
-📷 Pictures
+- Note number  
+- Note text  
+- Date (defaults to today)  
 
-You can upload multiple images; the app stores them encrypted inside the DB.
+---
 
-🔐 Database Security
+## 📷 Pictures
 
-The database is:
+Uploaded pictures are stored **encrypted** inside the SQLCipher database.
 
-Fully encrypted using SQLCipher
-Locked with a user-configurable key
-Uses:
-PRAGMA key
-WAL mode
-Full foreign key support
-Secure defaults
+---
 
-Losing your password = losing access forever.
+## 🔐 Database Security
 
-🧩 Future Enhancements (optional)
-Export to PDF
-Automatic backups
-QR code tagging
-CSV import/export
-📄 License
+The database uses:
+
+- Full SQLCipher AES-256 encryption  
+- User-defined password  
+- WAL mode  
+- Foreign key enforcement  
+- Secure defaults  
+
+⚠️ Lost password = **permanent loss of data access**
+
+---
+
+## 🧩 Future Enhancements
+
+- PDF export  
+- Automatic backups  
+- QR code tagging  
+- CSV import/export  
+
+---
+
+## 📄 License
+
+This project is licensed under the **GPLv3**.
+
+## Credits
+I worked with Grok to start this project, and Claude fixed it and added the finishing touches.
