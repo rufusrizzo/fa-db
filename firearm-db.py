@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS firearms (
     optic_zoom_max REAL,
     storage_location TEXT,
     is_cr BOOLEAN DEFAULT 0,
+    is_nfa BOOLEAN DEFAULT 0,
     metal_finish TEXT,
     color TEXT,
     place_of_origin TEXT,
@@ -137,6 +138,24 @@ CREATE TABLE IF NOT EXISTS pictures (
     FOREIGN KEY(firearm_id) REFERENCES firearms(id) ON DELETE CASCADE
 )
 ''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS tax_stamps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    firearm_id INTEGER,
+    pdf_blob BLOB,
+    filename TEXT,
+    slot INTEGER CHECK (slot BETWEEN 1 AND 3),
+    FOREIGN KEY(firearm_id) REFERENCES firearms(id) ON DELETE CASCADE
+)
+''')
+
+# Migration: add is_nfa to databases that pre-date this feature
+try:
+    cursor.execute("ALTER TABLE firearms ADD COLUMN is_nfa BOOLEAN DEFAULT 0")
+except Exception:
+    pass  # Column already exists
+
 conn.commit()
 
 COMMON_CALIBERS = [
@@ -214,6 +233,8 @@ def render_firearm_detail(full_row, firearm_id):
         st.write(f"**Produced Year:** {full_row['produced_year'] or '—'}")
         st.write(f"**Place of Origin:** {full_row['place_of_origin'] or '—'}")
         st.write(f"**C&R Eligible:** {'Yes' if full_row['is_cr'] else 'No'}")
+        nfa_label = "⚠️ **NFA Item**" if full_row['is_nfa'] else "NFA Item: No"
+        st.write(nfa_label)
         st.write(f"**Status:** {full_row['status'] or 'Active'}")
         st.write(f"**Status Date:** {full_row['status_date'] or '—'}")
         st.write(f"**Status Notes:** {full_row['status_notes'] or '—'}")
@@ -250,6 +271,25 @@ def render_firearm_detail(full_row, firearm_id):
                 pcols[idx % 4].image(img, caption=pic['filename'], width=250)
             except Exception:
                 st.write(f"Could not load image: {pic['filename']}")
+
+    # NFA Tax Stamps
+    if full_row['is_nfa']:
+        stamps = conn.execute(
+            "SELECT id, filename, pdf_blob, slot FROM tax_stamps WHERE firearm_id=? ORDER BY slot",
+            (firearm_id,)
+        ).fetchall()
+        st.markdown("**📄 NFA Tax Stamps:**")
+        if stamps:
+            for stamp in stamps:
+                st.download_button(
+                    label=f"⬇️ Download Tax Stamp {stamp['slot']}: {stamp['filename']}",
+                    data=stamp['pdf_blob'],
+                    file_name=stamp['filename'],
+                    mime="application/pdf",
+                    key=f"dl_stamp_{firearm_id}_{stamp['id']}",
+                )
+        else:
+            st.warning("⚠️ NFA Item — no tax stamp PDF attached.")
 
 
 # ====================== ACTION BUTTONS ======================
@@ -436,6 +476,7 @@ def render_edit_form(full_row, firearm_id):
             optic_zoom_max  = st.number_input("Optic Zoom Max (x)", 0.0, step=0.1,
                                               value=float(full_row['optic_zoom_max'] or 0))
             is_cr           = st.checkbox("Is C&R", value=bool(full_row['is_cr']))
+            is_nfa          = st.checkbox("🔴 NFA Item", value=bool(full_row['is_nfa']))
             metal_finish    = st.text_input("Metal Finish",     value=full_row['metal_finish'] or "")
             color           = st.text_input("Color",            value=full_row['color'] or "")
             place_of_origin = st.text_input("Place of Origin",  value=full_row['place_of_origin'] or "")
@@ -484,6 +525,34 @@ def render_edit_form(full_row, firearm_id):
         new_photos = st.file_uploader("Upload photos", type=["jpg", "jpeg", "png"],
                                       accept_multiple_files=True, key=f"ep_{firearm_id}")
 
+        # NFA Tax Stamp management
+        st.markdown("---")
+        st.markdown("**📄 NFA Tax Stamps** (up to 3 PDFs — required for NFA items)")
+        existing_stamps = conn.execute(
+            "SELECT id, filename, slot FROM tax_stamps WHERE firearm_id=? ORDER BY slot",
+            (firearm_id,)
+        ).fetchall()
+        delete_stamp_ids = []
+        for stamp in existing_stamps:
+            if st.checkbox(f"❌ Delete Tax Stamp {stamp['slot']}: {stamp['filename']}",
+                           key=f"ds_{firearm_id}_{stamp['id']}"):
+                delete_stamp_ids.append(stamp['id'])
+        stamp_slots_used = len(existing_stamps) - len(delete_stamp_ids)
+        stamp_slots_left = max(0, 3 - stamp_slots_used)
+        if stamp_slots_left > 0:
+            st.markdown(f"**Add Tax Stamp PDFs** ({stamp_slots_left} slot(s) remaining)")
+            new_stamps = []
+            for s in range(stamp_slots_left):
+                sf = st.file_uploader(
+                    f"Tax Stamp PDF #{s + 1 + stamp_slots_used}",
+                    type=["pdf"],
+                    key=f"ts_{firearm_id}_{s}"
+                )
+                new_stamps.append(sf)
+        else:
+            new_stamps = []
+            st.info("All 3 tax stamp slots are filled.")
+
         col_save, col_cancel = st.columns([1, 5])
         with col_save:
             submitted = st.form_submit_button("💾 Save Changes")
@@ -506,7 +575,7 @@ def render_edit_form(full_row, firearm_id):
                         purchase_price=?, date_purchased=?, catalog_number=?,
                         stock_grip_type=?, produced_year=?, action=?, feed_system=?,
                         sights=?, optics=?, optic_zoom_min=?, optic_zoom_max=?,
-                        storage_location=?, is_cr=?, metal_finish=?, color=?,
+                        storage_location=?, is_cr=?, is_nfa=?, metal_finish=?, color=?,
                         place_of_origin=?, weight_lbs=?, overall_length=?, height=?,
                         barrel_length=?, notes=?, fired_round_count=?
                     WHERE id=?
@@ -515,7 +584,7 @@ def render_edit_form(full_row, firearm_id):
                     caliber, condition, purchased_from, purchase_price, date_purchased,
                     catalog_number, stock_grip, produced_year, action, feed_system,
                     sights, optics, optic_zoom_min, optic_zoom_max, storage_location,
-                    is_cr, metal_finish, color, place_of_origin, weight,
+                    is_cr, is_nfa, metal_finish, color, place_of_origin, weight,
                     overall_length, height, barrel_length, notes, fired_round_count,
                     firearm_id
                 ))
@@ -544,6 +613,37 @@ def render_edit_form(full_row, firearm_id):
                         "INSERT INTO pictures (firearm_id, image_blob, filename, display_order) VALUES (?,?,?,?)",
                         (firearm_id, file.getvalue(), file.name, next_order + i)
                     )
+
+                # Validate NFA tax stamp requirement
+                if is_nfa:
+                    remaining_stamps = conn.execute(
+                        "SELECT COUNT(*) FROM tax_stamps WHERE firearm_id=? AND id NOT IN ({})".format(
+                            ",".join("?" * len(delete_stamp_ids)) if delete_stamp_ids else "SELECT -1"
+                        ),
+                        (firearm_id, *delete_stamp_ids) if delete_stamp_ids else (firearm_id,)
+                    ).fetchone()[0]
+                    new_valid = [f for f in new_stamps if f is not None]
+                    if remaining_stamps + len(new_valid) == 0:
+                        st.error("⚠️ NFA Item requires at least one tax stamp PDF.")
+                        st.stop()
+
+                # Delete flagged tax stamps
+                for stamp_id in delete_stamp_ids:
+                    cursor.execute("DELETE FROM tax_stamps WHERE id=? AND firearm_id=?",
+                                   (stamp_id, firearm_id))
+
+                # Add new tax stamps
+                next_slot = conn.execute(
+                    "SELECT COALESCE(MAX(slot), 0) + 1 FROM tax_stamps WHERE firearm_id=?",
+                    (firearm_id,)
+                ).fetchone()[0]
+                for sf in new_stamps:
+                    if sf is not None and next_slot <= 3:
+                        cursor.execute(
+                            "INSERT INTO tax_stamps (firearm_id, pdf_blob, filename, slot) VALUES (?,?,?,?)",
+                            (firearm_id, sf.getvalue(), sf.name, next_slot)
+                        )
+                        next_slot += 1
 
                 conn.commit()
                 st.session_state.editing_id = None
@@ -643,6 +743,7 @@ elif page == "Add New Firearm":
             optic_zoom_min  = st.number_input("Optic Zoom Min (x)", 0.0, step=0.1)
             optic_zoom_max  = st.number_input("Optic Zoom Max (x)", 0.0, step=0.1)
             is_cr           = st.checkbox("Is C&R")
+            is_nfa          = st.checkbox("🔴 NFA Item")
             metal_finish    = st.text_input("Metal Finish")
             color           = st.text_input("Color")
             place_of_origin = st.text_input("Place of Origin")
@@ -680,9 +781,18 @@ elif page == "Add New Firearm":
             "Upload Photos (max 16)", type=["jpg", "jpeg", "png"], accept_multiple_files=True
         )
 
+        st.markdown("---")
+        st.markdown("**📄 NFA Tax Stamps** (required if NFA Item is checked — up to 3 PDFs)")
+        tax_stamp_files = []
+        for s in range(1, 4):
+            sf = st.file_uploader(f"Tax Stamp PDF #{s}", type=["pdf"], key=f"add_ts_{s}")
+            tax_stamp_files.append(sf)
+
         if st.form_submit_button("💾 Save Firearm"):
             if not make or not model or not serial or not caliber:
                 st.error("Make, Model, Serial, and Caliber are required.")
+            elif is_nfa and not any(f is not None for f in tax_stamp_files):
+                st.error("⚠️ NFA Item requires at least one tax stamp PDF.")
             else:
                 try:
                     cursor.execute('''
@@ -691,16 +801,16 @@ elif page == "Add New Firearm":
                          condition_percent, purchased_from, purchase_price, date_purchased,
                          catalog_number, stock_grip_type, produced_year, action, feed_system,
                          sights, optics, optic_zoom_min, optic_zoom_max, storage_location,
-                         is_cr, metal_finish, color, place_of_origin, weight_lbs,
+                         is_cr, is_nfa, metal_finish, color, place_of_origin, weight_lbs,
                          overall_length, height, barrel_length, notes, fired_round_count,
                          sold_date, deleted_on, status, status_date, status_notes, status_party, status_case)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', (
                         make, model, serial, description, ftype, purpose, special_name, caliber,
                         condition, purchased_from, purchase_price, date_purchased,
                         catalog_number, stock_grip, produced_year, action, feed_system,
                         sights, optics, optic_zoom_min, optic_zoom_max, storage_location,
-                        is_cr, metal_finish, color, place_of_origin, weight,
+                        is_cr, is_nfa, metal_finish, color, place_of_origin, weight,
                         overall_length, height, barrel_length, notes, fired_round_count,
                         str(status_date) if status == "Sold"    else None,
                         str(status_date) if status == "Deleted" else None,
@@ -718,6 +828,12 @@ elif page == "Add New Firearm":
                             "INSERT INTO pictures (firearm_id, image_blob, filename, display_order) VALUES (?,?,?,?)",
                             (firearm_id, file.getvalue(), file.name, i)
                         )
+                    for slot_idx, sf in enumerate(tax_stamp_files, start=1):
+                        if sf is not None:
+                            cursor.execute(
+                                "INSERT INTO tax_stamps (firearm_id, pdf_blob, filename, slot) VALUES (?,?,?,?)",
+                                (firearm_id, sf.getvalue(), sf.name, slot_idx)
+                            )
 
                     conn.commit()
                     st.success(f"✅ {make} {model} saved successfully!")
