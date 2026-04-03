@@ -22,6 +22,7 @@ It includes a full web interface for adding, editing, searching, and managing yo
   - Consigned
 - Restore deleted/sold items
 - Full detail pages with photos & maintenance logs
+- Import/Export to CSV
 - Runs on Windows, Linux, and macOS
 
 ---
@@ -285,10 +286,8 @@ The database uses:
 
 ## 🧩 Future Enhancements
 
-- PDF export  
 - Automatic backups  
 - QR code tagging  
-- CSV import/export  
 
 ---
 

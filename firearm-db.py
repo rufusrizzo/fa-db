@@ -870,4 +870,141 @@ elif page == "Reports":
             mime="text/csv",
         )
 
+    st.markdown("---")
+
+    # ── Import from CSV ──────────────────────────────────────
+    st.markdown("### 📥 Import from CSV")
+    st.write(
+        "Upload a CSV exported from this app. "
+        "Rows with a serial number that already exists in the database will be **skipped**. "
+        "All columns are optional except **make**."
+    )
+
+    # Map both friendly names and raw DB column names so either CSV format works
+    IMPORT_COL_MAP = {
+        # Friendly name → DB column
+        "Make": "make", "Model": "model", "Serial": "serial",
+        "Caliber": "caliber", "Type": "type", "Date Purchased": "date_purchased",
+        "Finish": "metal_finish", "Color": "color", "Produced Year": "produced_year",
+        "Status": "status", "Status Date": "status_date", "Status Notes": "status_notes",
+        "Status Party": "status_party", "Status Case": "status_case",
+        "Description": "description", "Purpose": "purpose", "Special Name": "special_name",
+        "Purchased From": "purchased_from", "Purchase Price": "purchase_price",
+        "Catalog #": "catalog_number", "Stock/Grip Type": "stock_grip_type",
+        "Action": "action", "Feed System": "feed_system", "Sights": "sights",
+        "Optics": "optics", "Optic Zoom Min": "optic_zoom_min",
+        "Optic Zoom Max": "optic_zoom_max", "Storage Location": "storage_location",
+        "Is C&R": "is_cr", "Metal Finish": "metal_finish",
+        "Place of Origin": "place_of_origin", "Weight (lbs)": "weight_lbs",
+        "Overall Length (in)": "overall_length", "Height (in)": "height",
+        "Barrel Length (in)": "barrel_length", "Notes": "notes",
+        "Fired Round Count": "fired_round_count",
+        "Sold Date": "sold_date", "Deleted On": "deleted_on",
+    }
+
+    # DB columns that are legal to INSERT (excludes id, created_at)
+    IMPORTABLE_DB_COLS = {
+        "make", "model", "serial", "description", "type", "purpose", "special_name",
+        "caliber", "condition_percent", "purchased_from", "purchase_price",
+        "date_purchased", "catalog_number", "stock_grip_type", "produced_year",
+        "action", "feed_system", "sights", "optics", "optic_zoom_min", "optic_zoom_max",
+        "storage_location", "is_cr", "metal_finish", "color", "place_of_origin",
+        "weight_lbs", "overall_length", "height", "barrel_length", "notes",
+        "fired_round_count", "sold_date", "deleted_on",
+        "status", "status_date", "status_notes", "status_party", "status_case",
+    }
+
+    uploaded_csv = st.file_uploader("Choose a CSV file", type=["csv"], key="import_csv")
+
+    if uploaded_csv:
+        import csv as _csv
+
+        try:
+            content  = uploaded_csv.read().decode("utf-8")
+            reader   = _csv.DictReader(_io.StringIO(content))
+            csv_rows = list(reader)
+
+            if not csv_rows:
+                st.warning("The CSV file is empty.")
+            else:
+                # Normalise headers: friendly name → DB col name
+                def normalise_col(h):
+                    if h in IMPORT_COL_MAP:
+                        return IMPORT_COL_MAP[h]
+                    if h in IMPORTABLE_DB_COLS:
+                        return h   # already a raw DB column name
+                    return None    # unknown — will be ignored
+
+                raw_headers = reader.fieldnames or []
+                col_map     = {h: normalise_col(h) for h in raw_headers}
+                known_cols  = [h for h, db in col_map.items() if db]
+                ignored     = [h for h, db in col_map.items() if not db]
+
+                if ignored:
+                    st.info(f"Ignoring unrecognised columns: {', '.join(ignored)}")
+
+                # Preview
+                st.write(f"**{len(csv_rows)} rows found.** Preview of first 5:")
+                preview_data = []
+                for r in csv_rows[:5]:
+                    preview_data.append({h: r.get(h, "") for h in known_cols[:8]})
+                st.dataframe(preview_data)
+
+                if st.button("⬆️ Confirm Import"):
+                    imported = 0
+                    skipped  = 0
+                    errors   = []
+
+                    for i, row in enumerate(csv_rows, start=2):  # row 1 = header
+                        # Build {db_col: value} for this row
+                        record = {}
+                        for csv_h, db_col in col_map.items():
+                            if db_col and db_col in IMPORTABLE_DB_COLS:
+                                val = row.get(csv_h, "").strip()
+                                record[db_col] = val if val != "" else None
+
+                        if not record.get("make"):
+                            skipped += 1
+                            errors.append(f"Row {i}: skipped — 'make' is empty.")
+                            continue
+
+                        # Skip duplicate serials
+                        serial = record.get("serial")
+                        if serial:
+                            exists = conn.execute(
+                                "SELECT 1 FROM firearms WHERE serial=?", (serial,)
+                            ).fetchone()
+                            if exists:
+                                skipped += 1
+                                errors.append(
+                                    f"Row {i}: skipped — serial '{serial}' already exists."
+                                )
+                                continue
+
+                        cols   = list(record.keys())
+                        vals   = [record[c] for c in cols]
+                        placeholders = ", ".join(["?"] * len(cols))
+                        col_str = ", ".join(cols)
+
+                        try:
+                            cursor.execute(
+                                f"INSERT INTO firearms ({col_str}) VALUES ({placeholders})",
+                                vals
+                            )
+                            imported += 1
+                        except Exception as e:
+                            skipped += 1
+                            errors.append(f"Row {i}: error — {e}")
+
+                    conn.commit()
+
+                    st.success(f"✅ Import complete — {imported} added, {skipped} skipped.")
+                    if errors:
+                        with st.expander(f"⚠️ {len(errors)} skipped row(s) — click to see details"):
+                            for msg in errors:
+                                st.write(msg)
+
+        except Exception as e:
+            st.error(f"Could not read CSV: {e}")
+
 st.caption("Encrypted Firearms Database • Streamlit + SQLCipher")
