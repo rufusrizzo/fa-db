@@ -344,6 +344,7 @@ The database uses:
 
 ## 🧩 Future Enhancements
 
+- Ability to get full size photos
 - QR code tagging  
 
 ---
