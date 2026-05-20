@@ -156,13 +156,38 @@ try:
 except Exception:
     pass  # Column already exists
 
+# Migration: rename stamp_number → slot if the old column name exists
+try:
+    # Check if 'slot' column exists; if not, the table has 'stamp_number'
+    conn.execute("SELECT slot FROM tax_stamps LIMIT 1")
+except Exception:
+    try:
+        # Recreate table with correct column name preserving data
+        cursor.executescript("""
+            ALTER TABLE tax_stamps RENAME TO tax_stamps_old;
+            CREATE TABLE tax_stamps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                firearm_id INTEGER,
+                pdf_blob BLOB,
+                filename TEXT,
+                slot INTEGER CHECK (slot BETWEEN 1 AND 3),
+                FOREIGN KEY(firearm_id) REFERENCES firearms(id) ON DELETE CASCADE
+            );
+            INSERT INTO tax_stamps (id, firearm_id, pdf_blob, filename, slot)
+                SELECT id, firearm_id, pdf_blob, filename, stamp_number FROM tax_stamps_old;
+            DROP TABLE tax_stamps_old;
+        """)
+    except Exception:
+        pass  # Already correct or table doesn't exist yet
+
 conn.commit()
 
 COMMON_CALIBERS = [
     "9mm", "45 ACP", "223 Rem", "5.56 NATO", "308 Win", "30-06",
     "12 Gauge", "20 Gauge", "410 Bore", "22 LR", "380 ACP", "40 S&W",
     "357 Mag", "44 Mag", "6.5 Creedmoor", "300 Blackout", "7.62x39",
-    "10mm", "Other"
+    "10mm", "460 Mag", "7.62x51", "8mm Mauser", "30-30", "38 SPL", 
+    "300 WSM", "243 Win", "50 Blackpowder", "Other"
 ]
 
 STATUS_OPTIONS = ["Active", "Sold", "Deleted", "Stolen", "Transferred", "Consigned"]
@@ -509,7 +534,7 @@ def render_edit_form(full_row, firearm_id):
                                 value=ex['note_text'] if ex else "")
             maint_notes.append(txt.strip())
 
-        # Photo management
+        # Photo management — checkboxes only (file_uploader must be outside form)
         st.markdown("**Current Photos**")
         existing_pics = conn.execute(
             "SELECT id, filename FROM pictures WHERE firearm_id=? ORDER BY display_order",
@@ -519,13 +544,10 @@ def render_edit_form(full_row, firearm_id):
         for pic in existing_pics:
             if st.checkbox(f"❌ Delete: {pic['filename']}", key=f"dp_{firearm_id}_{pic['id']}"):
                 delete_pic_ids.append(pic['id'])
+        pic_slots_available = max(0, 16 - len(existing_pics) + len(delete_pic_ids))
+        st.caption(f"Use the photo uploader below the form to add up to {pic_slots_available} photo(s).")
 
-        slots_left = max(0, 16 - len(existing_pics) + len(delete_pic_ids))
-        st.markdown(f"**Add Photos** ({slots_left} slot(s) remaining)")
-        new_photos = st.file_uploader("Upload photos", type=["jpg", "jpeg", "png"],
-                                      accept_multiple_files=True, key=f"ep_{firearm_id}")
-
-        # NFA Tax Stamp management
+        # NFA Tax Stamp management — checkboxes only
         st.markdown("---")
         st.markdown("**📄 NFA Tax Stamps** (up to 3 PDFs — required for NFA items)")
         existing_stamps = conn.execute(
@@ -537,27 +559,34 @@ def render_edit_form(full_row, firearm_id):
             if st.checkbox(f"❌ Delete Tax Stamp {stamp['slot']}: {stamp['filename']}",
                            key=f"ds_{firearm_id}_{stamp['id']}"):
                 delete_stamp_ids.append(stamp['id'])
-        stamp_slots_used = len(existing_stamps) - len(delete_stamp_ids)
-        stamp_slots_left = max(0, 3 - stamp_slots_used)
-        if stamp_slots_left > 0:
-            st.markdown(f"**Add Tax Stamp PDFs** ({stamp_slots_left} slot(s) remaining)")
-            new_stamps = []
-            for s in range(stamp_slots_left):
-                sf = st.file_uploader(
-                    f"Tax Stamp PDF #{s + 1 + stamp_slots_used}",
-                    type=["pdf"],
-                    key=f"ts_{firearm_id}_{s}"
-                )
-                new_stamps.append(sf)
-        else:
-            new_stamps = []
-            st.info("All 3 tax stamp slots are filled.")
+        stamp_slots_available = max(0, 3 - len(existing_stamps) + len(delete_stamp_ids))
+        st.caption(f"Use the tax stamp uploader below the form to add up to {stamp_slots_available} PDF(s).")
 
         col_save, col_cancel = st.columns([1, 5])
         with col_save:
             submitted = st.form_submit_button("💾 Save Changes")
         with col_cancel:
             cancelled = st.form_submit_button("✖ Cancel")
+
+    # ── File uploaders OUTSIDE the form (Streamlit requirement) ──
+    st.markdown(f"**Add Photos** ({pic_slots_available} slot(s) available)")
+    new_photos = st.file_uploader(
+        "Upload photos", type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True, key=f"ep_{firearm_id}"
+    )
+
+    st.markdown(f"**Add Tax Stamp PDFs** ({stamp_slots_available} slot(s) available)")
+    new_stamps = []
+    for s in range(3):
+        sf = st.file_uploader(
+            f"Tax Stamp PDF #{s + 1}",
+            type=["pdf"],
+            key=f"ts_{firearm_id}_{s}"
+        )
+        new_stamps.append(sf)
+
+    # compute slots_left for use in save logic
+    slots_left = pic_slots_available
 
     if cancelled:
         st.session_state.editing_id = None
@@ -678,7 +707,7 @@ def render_card(row):
 
 # ====================== SIDEBAR ======================
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["View All Firearms", "Add New Firearm", "Search", "Reports"])
+page = st.sidebar.radio("Go to", ["View All Firearms", "Add New Firearm", "Search", "Import/Export"])
 
 
 # ====================== VIEW ALL ======================
@@ -888,10 +917,10 @@ elif page == "Search":
         st.info("Enter a search term above.")
 
 # ====================== REPORTS ======================
-elif page == "Reports":
+elif page == "Import/Export":
     import csv, io as _io
 
-    st.subheader("📊 Reports")
+    st.subheader("📊 Import/Export")
     st.write("Download your collection as a CSV file.")
 
     def rows_to_csv(rows, fieldnames):

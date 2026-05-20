@@ -12,6 +12,7 @@ It includes a full web interface for adding, editing, searching, and managing yo
 - Fully encrypted SQLCipher database (`firearms_encrypted.db`)
 - Add, edit, and view full firearm records with **40+ fields**
 - Upload pictures and maintenance notes
+- NFA item tracking with tax stamp storage (up to 3 PDF stamps per firearm)
 - Automatic `created_at` timestamps
 - Status workflow:
   - Active
@@ -24,6 +25,15 @@ It includes a full web interface for adding, editing, searching, and managing yo
 - Full detail pages with photos & maintenance logs
 - Import/Export to CSV
 - Runs on Windows, Linux, and macOS
+
+---
+
+## 🛠️ Included Scripts
+
+| Script | Description |
+|---|---|
+| `firearm-db.py` | Main Streamlit web application |
+| `firearm-db-tools.py` | CLI utility for backups, exports, and password management |
 
 ---
 
@@ -83,7 +93,7 @@ pip install streamlit sqlcipher3 pillow
 
 #### 3. Place the app
 
-Put `firearm-db.py` in your project folder.
+Put `firearm-db.py` and `firearm-db-tools.py` in your project folder.
 
 ---
 
@@ -140,7 +150,7 @@ If `sqlcipher3` fails, the `sqlcipher3-binary` wheel works.
 source venv/bin/activate
 streamlit run firearm-db.py
 ```
-If you want to use tmux.  This activate the virtual env and starts the DB.
+If you want to use tmux.  This activates the virtual env and starts the DB.
 ```
 ./tmux-run.sh
 ```
@@ -161,8 +171,6 @@ http://localhost:8501
 
 The website will prompt you for the password.
 
-
-
 ---
 
 ## 🌐 Using the Web Application
@@ -175,7 +183,7 @@ A complete form with fields for:
 - Description  
 - Type / Purpose  
 - Special name  
-- Caliber (includes “Other” field)  
+- Caliber (includes "Other" field)  
 - Condition %  
 - Purchased from / price / date  
 - Catalog number  
@@ -186,6 +194,7 @@ A complete form with fields for:
 - Metal finish / color  
 - Place of origin  
 - C&R eligibility checkbox  
+- NFA item checkbox  
 - Notes  
 - Fired round count  
 - Status (Active/Sold/Deleted/Stolen/Transferred/Consigned)  
@@ -225,7 +234,8 @@ Full detail view includes:
 - Action & feed system  
 - Metal finish & color  
 - Produced year & origin  
-- C&R status  
+- C&R and NFA status  
+- Tax stamps (up to 3 PDFs stored encrypted in the database)  
 - Status metadata  
 - Notes  
 - Maintenance notes  
@@ -270,6 +280,54 @@ Uploaded pictures are stored **encrypted** inside the SQLCipher database.
 
 ---
 
+## 🔧 CLI Tools (`firearm-db-tools.py`)
+
+A standalone command-line utility for database maintenance. Run from the same
+directory as `firearms_encrypted.db`, or pass `--db PATH` to specify a location.
+
+```
+python firearm-db-tools.py [--db PATH] <command> [options]
+```
+
+### 📦 Encrypted Backup
+
+Creates a timestamped encrypted copy of the live database. Safe to run while
+the main app is open (uses SQLCipher's page-by-page backup API). Backups land
+in the `backups/` subfolder by default and use the same password as the live database.
+
+```
+python firearm-db-tools.py backup
+python firearm-db-tools.py backup --label before-migration
+python firearm-db-tools.py backup --dir /mnt/nas/backups
+```
+
+### 🔓 Plaintext Export (for Testing)
+
+Decrypts the database to a standard SQLite3 file that can be opened with
+DB Browser for SQLite, Python's `sqlite3` module, or any SQLite tool.
+The script prompts for confirmation before writing since the output file
+has **no password protection**.
+
+```
+python firearm-db-tools.py export
+python firearm-db-tools.py export --out /tmp/test.db
+```
+
+⚠️ Delete the plaintext export when you are finished testing.
+
+### 🔑 Change Password
+
+Re-encrypts the database in-place with a new password using `PRAGMA rekey`.
+An encrypted backup is automatically saved to `backups/` before any changes
+are made. After a successful rekey, unlock the main app with the new password
+on next login.
+
+```
+python firearm-db-tools.py rekey
+```
+
+---
+
 ## 🔐 Database Security
 
 The database uses:
@@ -286,7 +344,6 @@ The database uses:
 
 ## 🧩 Future Enhancements
 
-- Automatic backups  
 - QR code tagging  
 
 ---
